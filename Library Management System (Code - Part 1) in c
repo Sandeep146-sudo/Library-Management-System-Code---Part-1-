@@ -1,0 +1,280 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_TITLE_LENGTH 100
+#define MAX_AUTHOR_LENGTH 100
+#define MAX_ISBN_LENGTH 20
+#define FILE_NAME "library_data.dat"
+
+// Structure for book details
+typedef struct Book {
+    char title[MAX_TITLE_LENGTH];
+    char author[MAX_AUTHOR_LENGTH];
+    char isbn[MAX_ISBN_LENGTH];
+    int available; // 1 for available, 0 for not available
+    struct Book* next;
+} Book;
+
+// Function Prototypes
+Book* createBook(const char* title, const char* author, const char* isbn, int available);
+void addBook(Book** head, const char* title, const char* author, const char* isbn, int available);
+void deleteBook(Book** head, const char* isbn);
+void displayBooks(const Book* head);
+Book* findBookByISBN(Book* head, const char* isbn);
+Book* findBookByTitle(Book* head, const char* title);
+void saveToFile(Book* head);
+Book* loadFromFile();
+void freeMemory(Book* head);
+
+int main() {
+    Book* catalog = loadFromFile(); // Load book catalog from file
+    int choice;
+    char title[MAX_TITLE_LENGTH], author[MAX_AUTHOR_LENGTH], isbn[MAX_ISBN_LENGTH];
+    int available;
+
+    while (1) {
+        printf("\nLibrary Management System\n");
+        printf("1. Add Book\n");
+        printf("2. Delete Book\n");
+        printf("3. Display All Books\n");
+        printf("4. Search Book by ISBN\n");
+        printf("5. Search Book by Title\n");
+        printf("6. Exit\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1:
+                // Add a new book
+                getchar();  // To consume the newline character
+                printf("Enter book title: ");
+                fgets(title, sizeof(title), stdin);
+                title[strcspn(title, "\n")] = '\0'; // Remove newline
+
+                printf("Enter book author: ");
+                fgets(author, sizeof(author), stdin);
+                author[strcspn(author, "\n")] = '\0';
+
+                printf("Enter book ISBN: ");
+                fgets(isbn, sizeof(isbn), stdin);
+                isbn[strcspn(isbn, "\n")] = '\0';
+
+                printf("Is the book available (1 for Yes, 0 for No): ");
+                scanf("%d", &available);
+
+                addBook(&catalog, title, author, isbn, available);
+                printf("Book added successfully.\n");
+                break;
+
+            case 2:
+                // Delete a book by ISBN
+                getchar();  // To consume the newline character
+                printf("Enter ISBN of the book to delete: ");
+                fgets(isbn, sizeof(isbn), stdin);
+                isbn[strcspn(isbn, "\n")] = '\0';
+
+                deleteBook(&catalog, isbn);
+                break;
+
+            case 3:
+                // Display all books
+                displayBooks(catalog);
+                break;
+
+            case 4:
+                // Search for a book by ISBN
+                getchar();  // To consume the newline character
+                printf("Enter ISBN to search: ");
+                fgets(isbn, sizeof(isbn), stdin);
+                isbn[strcspn(isbn, "\n")] = '\0';
+
+                Book* bookByISBN = findBookByISBN(catalog, isbn);
+                if (bookByISBN != NULL) {
+                    printf("Book found: %s by %s (ISBN: %s)\n", bookByISBN->title, bookByISBN->author, bookByISBN->isbn);
+                } else {
+                    printf("Book not found with ISBN: %s\n", isbn);
+                }
+                break;
+
+            case 5:
+                // Search for a book by Title
+                getchar();  // To consume the newline character
+                printf("Enter title to search: ");
+                fgets(title, sizeof(title), stdin);
+                title[strcspn(title, "\n")] = '\0';
+
+                Book* bookByTitle = findBookByTitle(catalog, title);
+                if (bookByTitle != NULL) {
+                    printf("Book found: %s by %s (ISBN: %s)\n", bookByTitle->title, bookByTitle->author, bookByTitle->isbn);
+                } else {
+                    printf("Book not found with title: %s\n", title);
+                }
+                break;
+
+            case 6:
+                // Exit the program
+                printf("Exiting...\n");
+                saveToFile(catalog);  // Save catalog to file before exit
+                freeMemory(catalog);  // Free memory
+                return 0;
+
+            default:
+                printf("Invalid choice. Please try again.\n");
+        }
+    }
+
+    return 0;
+}
+
+// Function to create a new book node
+Book* createBook(const char* title, const char* author, const char* isbn, int available) {
+    Book* newBook = (Book*)malloc(sizeof(Book));
+    if (newBook == NULL) {
+        printf("Memory allocation failed!\n");
+        exit(1);
+    }
+
+    strncpy(newBook->title, title, MAX_TITLE_LENGTH);
+    strncpy(newBook->author, author, MAX_AUTHOR_LENGTH);
+    strncpy(newBook->isbn, isbn, MAX_ISBN_LENGTH);
+    newBook->available = available;
+    newBook->next = NULL;
+    return newBook;
+}
+
+// Function to add a book to the catalog (linked list)
+void addBook(Book** head, const char* title, const char* author, const char* isbn, int available) {
+    Book* newBook = createBook(title, author, isbn, available);
+    newBook->next = *head;
+    *head = newBook;
+}
+
+// Function to delete a book by ISBN
+void deleteBook(Book** head, const char* isbn) {
+    Book* temp = *head;
+    Book* prev = NULL;
+
+    // If the head node itself holds the ISBN to be deleted
+    if (temp != NULL && strcmp(temp->isbn, isbn) == 0) {
+        *head = temp->next; // Change head
+        free(temp); // Free memory
+        printf("Book with ISBN %s deleted.\n", isbn);
+        return;
+    }
+
+    // Search for the book with the given ISBN
+    while (temp != NULL && strcmp(temp->isbn, isbn) != 0) {
+        prev = temp;
+        temp = temp->next;
+    }
+
+    // If the book was not found
+    if (temp == NULL) {
+        printf("Book with ISBN %s not found.\n", isbn);
+        return;
+    }
+
+    // Unlink the node from the list
+    prev->next = temp->next;
+    free(temp); // Free memory
+    printf("Book with ISBN %s deleted.\n", isbn);
+}
+
+// Function to display all books in the catalog
+void displayBooks(const Book* head) {
+    if (head == NULL) {
+        printf("No books available.\n");
+        return;
+    }
+
+    printf("\nLibrary Catalog:\n");
+    printf("Title                       | Author                  | ISBN           | Available\n");
+    printf("-------------------------------------------------------------\n");
+    while (head != NULL) {
+        printf("%-25s | %-22s | %-15s | %-9s\n", head->title, head->author, head->isbn, head->available ? "Yes" : "No");
+        head = head->next;
+    }
+}
+
+// Function to find a book by ISBN
+Book* findBookByISBN(Book* head, const char* isbn) {
+    while (head != NULL) {
+        if (strcmp(head->isbn, isbn) == 0) {
+            return head;
+        }
+        head = head->next;
+    }
+    return NULL;
+}
+
+// Function to find a book by Title
+Book* findBookByTitle(Book* head, const char* title) {
+    while (head != NULL) {
+        if (strcmp(head->title, title) == 0) {
+            return head;
+        }
+        head = head->next;
+    }
+    return NULL;
+}
+
+// Function to save catalog to file
+void saveToFile(Book* head) {
+    FILE* file = fopen(FILE_NAME, "wb");
+    if (file == NULL) {
+        printf("Error opening file to save data.\n");
+        return;
+    }
+
+    Book* current = head;
+    while (current != NULL) {
+        fwrite(current, sizeof(Book), 1, file);
+        current = current->next;
+    }
+
+    fclose(file);
+    printf("Catalog saved to file.\n");
+}
+
+// Function to load catalog from file
+Book* loadFromFile() {
+    FILE* file = fopen(FILE_NAME, "rb");
+    if (file == NULL) {
+        printf("No previous data found, starting with an empty catalog.\n");
+        return NULL;
+    }
+
+    Book* head = NULL;
+    Book* temp = NULL;
+
+    while (1) {
+        Book* newBook = (Book*)malloc(sizeof(Book));
+        if (fread(newBook, sizeof(Book), 1, file) != 1) {
+            free(newBook);
+            break;
+        }
+
+        newBook->next = NULL;
+        if (head == NULL) {
+            head = newBook;
+        } else {
+            temp->next = newBook;
+        }
+
+        temp = newBook;
+    }
+
+    fclose(file);
+    return head;
+}
+
+// Function to free the memory allocated for the catalog
+void freeMemory(Book* head) {
+    Book* temp;
+    while (head != NULL) {
+        temp = head;
+        head = head->next;
+        free(temp);
+    }
+}
